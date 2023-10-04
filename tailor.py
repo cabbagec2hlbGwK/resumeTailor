@@ -12,6 +12,7 @@ import json
 
 sampleExperience = {
     "jobExperience": "SYSTEM ADMINISTRATOR L1",
+    "elementType": "Experience",
     "sample": """Servers by installing required software and patching Established network specifications and analyzed workflow,
 access, information, and security requirements.
 Hardened all servers by implementing security measures such as firewalls, SSL/TLS certificates, and IAM.
@@ -19,15 +20,15 @@ Migrating some parts of the system to AWS.
 Configured backup and RAID storage for disaster recovery Provided technical support to end-users for
  hardware and software issues.""",
 }
-sampleJobPostingURL = "https://www.linkedin.com/jobs/view/member-support-representative-at-elo-health-3725732265?refId=NnwWNRddShZ2X4lAzz5Q4w%3D%3D&trackingId=ykCB3RI7TqF8pLpa1RCBtw%3D%3D&trk=public_jobs_topcard-title"
+sampleJobPostingURL = "https://www.linkedin.com/jobs/view/3728600846/?eBP=JOB_SEARCH_ORGANIC&refId=XZ3KUIbL9dDmxjbn%2BFunHA%3D%3D&trackingId=%2BMf8IZi%2FPoQ0ZkmuyyodMw%3D%3D"
 
 
 def main():
-    tailor(sampleJobPostingURL)
+    print(tailor(sampleJobPostingURL))
 
 
 def tailor(url):
-    data = jobBoardHandeler(url)
+    data = getJob(url)
     openAi(data, sampleExperience)
 
 
@@ -71,7 +72,7 @@ def linkedinHandeler(url):
     return data
 
 
-def jobBoardHandeler(url):
+def getJob(url):
     match url:
         case url if "indeed" in url:
             return indeedHandeler(url)
@@ -82,28 +83,48 @@ def jobBoardHandeler(url):
             sys.quit("1")
 
 
+def experiencePrompt(jobPosting, resumeElement):
+    messages = [
+        {
+            "role": "system",
+            "content": "just give the answer directedly no unrelated information,and reply in MD format only.",
+        },
+        {
+            "role": "user",
+            "content": f"I am going to send you a job posting. and I want your help in getting this position. To do so, I am going to modify my resume to include the tools and skills needed by this job posting. So for this, let's start with modifying the experience section. So I have experience as a {resumeElement['jobExperience']}, and I want to show that I have more than enough experience to perform the role the job posting is asking for.\nAlso, only give me the answer, nothing extra and don't start with based on, etc.",
+        },
+        {
+            "role": "assistant",
+            "content": "Sure, please provide the job posting and details of your system administrator experience, and I will help you modify your resume accordingly.",
+        },
+        {"role": "user", "content": jobPosting["jobDiscription"]},
+    ]
+    return messages
+
+
 def openAi(jobPosting, resumeElemet):
-    print(jobPosting)
     openai.api_key = os.getenv("gpt")
     with open("prompts/jobExperiencePrompt.txt") as f:
         systemPrompt = f.read()
-    data = {}
-    data["jobPosting"] = jobPosting["jobDiscription"]
-    data["jobExperience"] = resumeElemet["jobExperience"]
-    data["sample"] = resumeElemet["sample"]
+    message = []
+    elementType = resumeElemet.get("elementType")
+    match elementType:
+        case elementType if "Summary" == elementType:
+            pass
+        case elementType if "Experience" == elementType:
+            message = experiencePrompt(
+                jobPosting=jobPosting, resumeElement=resumeElemet
+            )
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": f"{systemPrompt}"},
-            {"role": "user", "content": f"{json.dumps(data)}"},
-        ],
-        max_tokens=100,
+        messages=message,
+        temperature=1,
+        max_tokens=150,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
     )
-    print(data)
-    # print(response)
+    print(response.choices[0].get("message").get("content"))
 
 
 if "__main__" == __name__:
